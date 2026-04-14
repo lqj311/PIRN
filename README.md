@@ -11,23 +11,23 @@ This repository contains two tracks:
 
 ```text
 .
-├─ src/
-│  ├─ pirn_pp/               # PIRN++ modules
-│  └─ pirn_paper/            # PIRN paper pipeline
-│     ├─ config.py
-│     ├─ data.py
-│     ├─ metrics.py
-│     ├─ model.py
-│     ├─ train.py
-│     └─ eval.py
-├─ examples/
-│  ├─ pirn_paper_train_step.py
-│  └─ make_toy_feature_dataset.py
-└─ frontend/
-   ├─ index.html
-   ├─ app.js
-   ├─ styles.css
-   └─ server.py
+|- src/
+|  |- pirn_pp/               # PIRN++ modules
+|  |- pirn_paper/            # PIRN paper pipeline
+|     |- config.py
+|     |- data.py
+|     |- metrics.py
+|     |- model.py
+|     |- train.py
+|     |- eval.py
+|- examples/
+|  |- pirn_paper_train_step.py
+|  |- make_toy_feature_dataset.py
+|- frontend/
+   |- index.html
+   |- app.js
+   |- styles.css
+   |- server.py
 ```
 
 ## Install

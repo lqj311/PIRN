@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PIRN 实验控制台</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>PIRN 实验控制台</h1>
+        <p>无监督工业缺陷检测（BPA + APR + MNC）</p>
+      </div>
+      <button id="exportConfigBtn" class="btn primary">导出配置 JSON</button>
+    </header>
+
+    <main class="grid">
+      <section class="card">
+        <h2>1. 数据与运行</h2>
+        <div class="form-grid">
+          <label>数据根目录 <input id="dataRoot" value="data/features" /></label>
+          <label>输出目录 <input id="outputDir" value="runs/pirn_paper" /></label>
+          <label>设备
+            <select id="device">
+              <option value="cuda">cuda</option>
+              <option value="cpu">cpu</option>
+            </select>
+          </label>
+          <label>随机种子 <input id="seed" type="number" value="42" /></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2. 训练参数</h2>
+        <div class="form-grid">
+          <label>Epochs <input id="epochs" type="number" value="50" /></label>
+          <label>Batch Size <input id="batchSize" type="number" value="8" /></label>
+          <label>学习率 <input id="lr" type="number" step="0.00001" value="0.0001" /></label>
+          <label>Weight Decay <input id="wd" type="number" step="0.00001" value="0.0001" /></label>
+          <label>Num Workers <input id="workers" type="number" value="0" /></label>
+          <label>Grad Clip <input id="gradClip" type="number" step="0.1" value="1.0" /></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>3. 模型参数</h2>
+        <div class="form-grid">
+          <label>dim <input id="dim" type="number" value="768" /></label>
+          <label>num_tokens <input id="tokens" type="number" value="196" /></label>
+          <label>num_proto_rgb <input id="protoRgb" type="number" value="24" /></label>
+          <label>num_proto_sn <input id="protoSn" type="number" value="24" /></label>
+          <label>sinkhorn_tau <input id="tau" type="number" step="0.01" value="0.07" /></label>
+          <label>sinkhorn_iters <input id="sinkhornIters" type="number" value="7" /></label>
+          <label>mnc_heads <input id="mncHeads" type="number" value="8" /></label>
+          <label>mnc_dropout <input id="mncDrop" type="number" step="0.01" value="0.1" /></label>
+          <label>rec_weight <input id="recW" type="number" step="0.01" value="1.0" /></label>
+          <label>sem_weight <input id="semW" type="number" step="0.01" value="0.1" /></label>
+          <label>div_weight <input id="divW" type="number" step="0.01" value="0.05" /></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>4. 命令与实验记录</h2>
+        <div class="actions">
+          <button id="genCmdBtn" class="btn">生成训练命令</button>
+          <button id="saveRunBtn" class="btn">保存到实验记录</button>
+          <button id="clearRunsBtn" class="btn danger">清空记录</button>
+        </div>
+        <pre id="commandBox"></pre>
+      </section>
+
+      <section class="card wide">
+        <h2>5. 结构流程图</h2>
+        <svg viewBox="0 0 1100 240" class="pipeline">
+          <rect x="20" y="70" width="180" height="80" rx="10"></rect>
+          <text x="110" y="112" text-anchor="middle">输入 RGB + SN</text>
+          <rect x="240" y="70" width="180" height="80" rx="10"></rect>
+          <text x="330" y="112" text-anchor="middle">BPA 原型分配</text>
+          <rect x="460" y="70" width="180" height="80" rx="10"></rect>
+          <text x="550" y="112" text-anchor="middle">APR 原型更新</text>
+          <rect x="680" y="70" width="180" height="80" rx="10"></rect>
+          <text x="770" y="112" text-anchor="middle">MNC 跨模态通信</text>
+          <rect x="900" y="70" width="180" height="80" rx="10"></rect>
+          <text x="990" y="112" text-anchor="middle">异常分数/热图</text>
+          <line x1="200" y1="110" x2="240" y2="110"></line>
+          <line x1="420" y1="110" x2="460" y2="110"></line>
+          <line x1="640" y1="110" x2="680" y2="110"></line>
+          <line x1="860" y1="110" x2="900" y2="110"></line>
+        </svg>
+      </section>
+
+      <section class="card wide">
+        <h2>6. 实验历史</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>数据</th>
+              <th>Epochs</th>
+              <th>AUROC</th>
+              <th>命令</th>
+            </tr>
+          </thead>
+          <tbody id="runsTableBody"></tbody>
+        </table>
+        <div class="upload">
+          <label class="btn">
+            导入结果 JSON
+            <input id="importResultFile" type="file" accept=".json" hidden />
+          </label>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
+

@@ -28,9 +28,8 @@ class PIRNModel(nn.Module):
         self.mnc = MNC(self.cfg)
 
     @torch.no_grad()
-    def _refresh_prototypes(self, p_rgb: torch.Tensor, p_sn: torch.Tensor) -> None:
-        self.bpa.proto_rgb.copy_(p_rgb)
-        self.bpa.proto_sn.copy_(p_sn)
+    def reset_adaptation(self) -> None:
+        self.apr.reset_memory()
 
     def forward(
         self,
@@ -39,19 +38,24 @@ class PIRNModel(nn.Module):
         update_proto: bool = True,
         token_mask: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
-        bpa_out = self.bpa(f_rgb, f_sn)
+        current_proto = self.apr.current_prototypes(self.bpa.proto_rgb, self.bpa.proto_sn)
+        bpa_out = self.bpa(
+            f_rgb,
+            f_sn,
+            proto_rgb=current_proto["proto_rgb"],
+            proto_sn=current_proto["proto_sn"],
+        )
 
         apr_out = self.apr(
-            proto_rgb=self.bpa.proto_rgb,
-            proto_sn=self.bpa.proto_sn,
+            base_proto_rgb=self.bpa.proto_rgb,
+            base_proto_sn=self.bpa.proto_sn,
             assign_rgb=bpa_out["assign_rgb"],
             assign_sn=bpa_out["assign_sn"],
             token_rgb=bpa_out["z_rgb"],
             token_sn=bpa_out["z_sn"],
+            token_mask=token_mask,
+            update_memory=update_proto,
         )
-
-        if update_proto:
-            self._refresh_prototypes(apr_out["proto_rgb_refined"], apr_out["proto_sn_refined"])
 
         # Reconstruct with refined prototypes.
         rec_rgb = torch.einsum("bnk,kd->bnd", bpa_out["assign_rgb"], apr_out["proto_rgb_refined"])
@@ -80,6 +84,11 @@ class PIRNModel(nn.Module):
             "token_anomaly": token_anomaly,
             "image_anomaly": image_anomaly,
             "sem_consistency": bpa_out["sem_consistency"],
+            "proto_rgb_refined": apr_out["proto_rgb_refined"],
+            "proto_sn_refined": apr_out["proto_sn_refined"],
+            "apr_residual_reg": apr_out["residual_reg"],
+            "apr_reliable_ratio": apr_out["reliable_ratio"],
+            "apr_support_ratio": apr_out["support_ratio"],
         }
 
     def compute_loss(
@@ -103,8 +112,8 @@ class PIRNModel(nn.Module):
             rec_loss = F.smooth_l1_loss(rec_rgb, tgt_rgb) + F.smooth_l1_loss(rec_sn, tgt_sn)
 
         # Prototype diversity to reduce collapse.
-        p_rgb = l2_normalize(self.bpa.proto_rgb, dim=-1)
-        p_sn = l2_normalize(self.bpa.proto_sn, dim=-1)
+        p_rgb = l2_normalize(out["proto_rgb_refined"], dim=-1)
+        p_sn = l2_normalize(out["proto_sn_refined"], dim=-1)
         eye_rgb = torch.eye(p_rgb.shape[0], device=p_rgb.device)
         eye_sn = torch.eye(p_sn.shape[0], device=p_sn.device)
         div_loss = (torch.matmul(p_rgb, p_rgb.t()) - eye_rgb).pow(2).mean() + (
@@ -112,6 +121,18 @@ class PIRNModel(nn.Module):
         ).pow(2).mean()
 
         sem_loss = out["sem_consistency"]
+        residual_loss = out["apr_residual_reg"]
 
-        total = self.cfg.rec_weight * rec_loss + self.cfg.sem_weight * sem_loss + self.cfg.div_weight * div_loss
-        return {"total": total, "rec": rec_loss, "sem": sem_loss, "div": div_loss}
+        total = (
+            self.cfg.rec_weight * rec_loss
+            + self.cfg.sem_weight * sem_loss
+            + self.cfg.div_weight * div_loss
+            + self.cfg.apr_residual_weight * residual_loss
+        )
+        return {
+            "total": total,
+            "rec": rec_loss,
+            "sem": sem_loss,
+            "div": div_loss,
+            "apr_residual": residual_loss,
+        }

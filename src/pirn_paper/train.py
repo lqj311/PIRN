@@ -31,6 +31,7 @@ def train_one_epoch(
     grad_clip: float,
 ) -> Dict[str, float]:
     model.train()
+    model.reset_adaptation()
     loss_items: List[Dict[str, torch.Tensor]] = []
     for batch in loader:
         f_rgb = batch["rgb"].to(device)
@@ -45,29 +46,50 @@ def train_one_epoch(
         if grad_clip > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optimizer.step()
-        loss_items.append(losses)
+        loss_items.append(
+            {
+                **losses,
+                "apr_reliable_ratio": out["apr_reliable_ratio"],
+                "apr_support_ratio": out["apr_support_ratio"],
+            }
+        )
 
     return summarize_loss(loss_items)
 
 
 @torch.no_grad()
-def evaluate(model: PIRNModel, loader, device: torch.device) -> Dict[str, float]:
+def evaluate(
+    model: PIRNModel,
+    loader,
+    device: torch.device,
+    update_proto: bool = False,
+) -> Dict[str, float]:
     model.eval()
+    model.reset_adaptation()
     all_scores = []
     all_labels = []
+    reliable_ratios = []
+    support_ratios = []
     for batch in loader:
         f_rgb = batch["rgb"].to(device)
         f_sn = batch["sn"].to(device)
         token_mask = batch["mask"].to(device)
         labels = batch["label"].to(device)
 
-        out = model(f_rgb, f_sn, update_proto=False, token_mask=token_mask)
+        out = model(f_rgb, f_sn, update_proto=update_proto, token_mask=token_mask)
         all_scores.append(out["image_anomaly"].detach().cpu())
         all_labels.append(labels.detach().cpu())
+        reliable_ratios.append(float(out["apr_reliable_ratio"].detach().cpu().item()))
+        support_ratios.append(float(out["apr_support_ratio"].detach().cpu().item()))
 
     scores = torch.cat(all_scores, dim=0)
     labels = torch.cat(all_labels, dim=0)
-    return summarize_scores(scores, labels)
+    metrics = summarize_scores(scores, labels)
+    if reliable_ratios:
+        metrics["apr_reliable_ratio"] = sum(reliable_ratios) / len(reliable_ratios)
+    if support_ratios:
+        metrics["apr_support_ratio"] = sum(support_ratios) / len(support_ratios)
+    return metrics
 
 
 def save_checkpoint(path: Path, model: PIRNModel, optimizer: torch.optim.Optimizer, epoch: int) -> None:
@@ -112,6 +134,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sinkhorn-tau", type=float, default=0.07)
     parser.add_argument("--sinkhorn-iters", type=int, default=7)
     parser.add_argument("--apr-eps", type=float, default=1e-6)
+    parser.add_argument("--apr-confidence-threshold", type=float, default=0.12)
+    parser.add_argument("--apr-entropy-threshold", type=float, default=0.75)
+    parser.add_argument("--apr-residual-scale", type=float, default=0.5)
+    parser.add_argument("--apr-memory-momentum", type=float, default=0.90)
+    parser.add_argument("--apr-residual-weight", type=float, default=0.01)
     parser.add_argument("--mnc-heads", type=int, default=8)
     parser.add_argument("--mnc-dropout", type=float, default=0.1)
     parser.add_argument("--rec-weight", type=float, default=1.0)
@@ -137,6 +164,11 @@ def main() -> None:
         sinkhorn_tau=args.sinkhorn_tau,
         sinkhorn_iters=args.sinkhorn_iters,
         apr_eps=args.apr_eps,
+        apr_confidence_threshold=args.apr_confidence_threshold,
+        apr_entropy_threshold=args.apr_entropy_threshold,
+        apr_residual_scale=args.apr_residual_scale,
+        apr_memory_momentum=args.apr_memory_momentum,
+        apr_residual_weight=args.apr_residual_weight,
         mnc_heads=args.mnc_heads,
         mnc_dropout=args.mnc_dropout,
         rec_weight=args.rec_weight,
@@ -183,4 +215,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

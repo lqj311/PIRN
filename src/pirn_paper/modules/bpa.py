@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -59,12 +59,20 @@ class BPA(nn.Module):
         z_rec = torch.einsum("bnk,kd->bnd", assign, p_n)
         return z_rec, assign, sim
 
-    def forward(self, f_rgb: torch.Tensor, f_sn: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def forward(
+        self,
+        f_rgb: torch.Tensor,
+        f_sn: torch.Tensor,
+        proto_rgb: Optional[torch.Tensor] = None,
+        proto_sn: Optional[torch.Tensor] = None,
+    ) -> Dict[str, torch.Tensor]:
+        proto_rgb = self.proto_rgb if proto_rgb is None else proto_rgb
+        proto_sn = self.proto_sn if proto_sn is None else proto_sn
         z_rgb, assign_rgb, sim_rgb = self._assign(
-            f_rgb, self.proto_rgb, self.cfg.sinkhorn_iters, self.cfg.sinkhorn_tau
+            f_rgb, proto_rgb, self.cfg.sinkhorn_iters, self.cfg.sinkhorn_tau
         )
         z_sn, assign_sn, sim_sn = self._assign(
-            f_sn, self.proto_sn, self.cfg.sinkhorn_iters, self.cfg.sinkhorn_tau
+            f_sn, proto_sn, self.cfg.sinkhorn_iters, self.cfg.sinkhorn_tau
         )
 
         # Cross-modal assignment consistency (paper-style semantic alignment proxy).
@@ -84,4 +92,3 @@ class BPA(nn.Module):
             "sim_sn": sim_sn,
             "sem_consistency": sem_consistency,
         }
-

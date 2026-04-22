@@ -18,6 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--tta", action="store_true", help="Enable online residual-memory updates during evaluation.")
     parser.add_argument("--dim", type=int, default=768)
     parser.add_argument("--num-tokens", type=int, default=196)
     parser.add_argument("--num-proto-rgb", type=int, default=24)
@@ -25,6 +26,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sinkhorn-tau", type=float, default=0.07)
     parser.add_argument("--sinkhorn-iters", type=int, default=7)
     parser.add_argument("--apr-eps", type=float, default=1e-6)
+    parser.add_argument("--apr-confidence-threshold", type=float, default=0.12)
+    parser.add_argument("--apr-entropy-threshold", type=float, default=0.75)
+    parser.add_argument("--apr-residual-scale", type=float, default=0.5)
+    parser.add_argument("--apr-memory-momentum", type=float, default=0.90)
+    parser.add_argument("--apr-residual-weight", type=float, default=0.01)
     parser.add_argument("--mnc-heads", type=int, default=8)
     parser.add_argument("--mnc-dropout", type=float, default=0.1)
     parser.add_argument("--rec-weight", type=float, default=1.0)
@@ -45,6 +51,11 @@ def main() -> None:
         sinkhorn_tau=args.sinkhorn_tau,
         sinkhorn_iters=args.sinkhorn_iters,
         apr_eps=args.apr_eps,
+        apr_confidence_threshold=args.apr_confidence_threshold,
+        apr_entropy_threshold=args.apr_entropy_threshold,
+        apr_residual_scale=args.apr_residual_scale,
+        apr_memory_momentum=args.apr_memory_momentum,
+        apr_residual_weight=args.apr_residual_weight,
         mnc_heads=args.mnc_heads,
         mnc_dropout=args.mnc_dropout,
         rec_weight=args.rec_weight,
@@ -55,14 +66,22 @@ def main() -> None:
 
     ckpt_path = Path(args.checkpoint)
     ckpt = torch.load(ckpt_path, map_location="cpu")
-    model.load_state_dict(ckpt["model_state_dict"], strict=True)
+    incompatible = model.load_state_dict(ckpt["model_state_dict"], strict=False)
+    if incompatible.missing_keys:
+        print("Missing keys while loading checkpoint:")
+        for key in incompatible.missing_keys:
+            print(f"  - {key}")
+    if incompatible.unexpected_keys:
+        print("Unexpected keys while loading checkpoint:")
+        for key in incompatible.unexpected_keys:
+            print(f"  - {key}")
 
     _, test_loader = build_dataloaders(
         data_root=args.data_root,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
     )
-    metrics = evaluate(model, test_loader, device)
+    metrics = evaluate(model, test_loader, device, update_proto=args.tta)
     print("Evaluation metrics:")
     for k, v in metrics.items():
         print(f"{k}: {v:.6f}")
@@ -70,4 +89,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

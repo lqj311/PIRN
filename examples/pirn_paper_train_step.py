@@ -16,9 +16,14 @@ def main() -> None:
         num_proto_sn=24,
         sinkhorn_tau=0.07,
         sinkhorn_iters=7,
+        apr_confidence_threshold=0.12,
+        apr_entropy_threshold=0.75,
+        apr_residual_scale=0.5,
+        apr_memory_momentum=0.90,
     )
     model = PIRNModel(cfg)
     model.train()
+    model.reset_adaptation()
 
     # Placeholder features; replace with DINOv2/SN encoder outputs.
     f_rgb = torch.randn(2, 196, 768)
@@ -29,9 +34,10 @@ def main() -> None:
     losses["total"].backward()
 
     print({k: float(v.detach()) for k, v in losses.items()})
+    print("apr_reliable_ratio:", float(out["apr_reliable_ratio"].detach()))
+    print("apr_support_ratio:", float(out["apr_support_ratio"].detach()))
     print("image_anomaly:", out["image_anomaly"].detach().tolist())
 
 
 if __name__ == "__main__":
     main()
-

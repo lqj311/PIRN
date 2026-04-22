@@ -17,6 +17,11 @@ class PIRNConfig:
 
     # APR
     apr_eps: float = 1e-6
+    apr_confidence_threshold: float = 0.12
+    apr_entropy_threshold: float = 0.75
+    apr_residual_scale: float = 0.5
+    apr_memory_momentum: float = 0.90
+    apr_residual_weight: float = 0.01
 
     # MNC
     mnc_heads: int = 8
@@ -26,4 +31,3 @@ class PIRNConfig:
     rec_weight: float = 1.0
     sem_weight: float = 0.1
     div_weight: float = 0.05
-

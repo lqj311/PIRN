@@ -7,6 +7,13 @@ This repository contains two tracks:
 1. `pirn_pp`: PIRN++ modular blocks (`BPA++/APR++/MNC++`).
 2. `pirn_paper`: paper-style PIRN pipeline (`BPA/APR/MNC`) with full training/evaluation scripts.
 
+The `pirn_paper` track now also includes an optional dual-memory APR variant:
+
+- base prototypes remain in `BPA` as the stable normality prior
+- `APR` maintains a residual memory bank for safer online adaptation
+- residual updates are filtered by assignment confidence and entropy
+- training/eval logs expose `apr_reliable_ratio` and `apr_support_ratio`
+
 ## Structure
 
 ```text
@@ -70,6 +77,13 @@ python -m pirn_paper.train \
   --epochs 50 \
   --batch-size 8 \
   --device cuda
+
+# dual-memory APR knobs (optional)
+#   --apr-confidence-threshold 0.12
+#   --apr-entropy-threshold 0.75
+#   --apr-residual-scale 0.5
+#   --apr-memory-momentum 0.9
+#   --apr-residual-weight 0.01
 ```
 
 ## Evaluation
@@ -80,6 +94,8 @@ python -m pirn_paper.eval \
   --checkpoint runs/pirn_paper/best.pt \
   --batch-size 8 \
   --device cuda
+
+# add --tta to enable online residual-memory adaptation during evaluation
 ```
 
 ## Frontend (experiment console)
@@ -101,4 +117,3 @@ Open: `http://localhost:8080`
 python examples/make_toy_feature_dataset.py --out toy_features --dim 768 --tokens 196
 python -m pirn_paper.train --data-root toy_features --output-dir runs/toy --epochs 5 --device cpu
 ```
-
